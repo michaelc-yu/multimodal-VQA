@@ -25,16 +25,18 @@ def create_embedding_matrix(vocab, glove_embeddings, embedding_dimension):
             embedding_matrix[i] = np.zeros((embedding_dimension,))
     return torch.tensor(embedding_matrix, dtype=torch.float)
 
-def create_vocab_list(questions):
+def create_vocab_list(all_data):
     # <UNK> for unseen words
     # <PAD> for padding questions to same length
     vocab = ["<UNK>", "<PAD>"]
-    for question_dict in questions:
-        question = question_dict['question']
-        words = question.split()
-        for word in words:
-            if word not in vocab:
-                vocab.append(word)
+    for item in all_data:
+        questions = item['questions']
+        for question in questions:
+            question_txt = question['question']
+            words = question_txt.split()
+            for word in words:
+                if word not in vocab:
+                    vocab.append(word)
     return vocab
 
 def get_candidate_answers(annotations, threshold):

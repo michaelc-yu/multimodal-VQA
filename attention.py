@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.nn.init as init
 import torch.optim as optim
 import torchvision.models as models
 
@@ -23,8 +24,19 @@ class Attention(nn.Module):
         self.question_state_proj_layer = nn.Linear(hidden_dim, attention_dim)
         self.dense = nn.Linear(attention_dim, 1)
 
+        self._initialize_weights()
+
+    def _initialize_weights(self):
+        # Initialize weights for linear layers
+        init.xavier_uniform_(self.img_feature_proj_layer.weight.data)
+        self.img_feature_proj_layer.bias.data.fill_(0)
+        init.xavier_uniform_(self.question_state_proj_layer.weight.data)
+        self.question_state_proj_layer.bias.data.fill_(0)
+        init.xavier_uniform_(self.dense.weight.data)
+        self.dense.bias.data.fill_(0)
+
     def forward(self, image_features, question_state):
-        print("In Attention forward method")
+        # print("In Attention forward method")
         # print(f"image_features: {image_features}")
         # print(f"question_state: {question_state}")
         # print(f"image_features shape: {image_features.shape}")
@@ -33,20 +45,20 @@ class Attention(nn.Module):
         num_boxes, feature_dim = image_features.size()
         batch_size, hidden_dim = question_state.size()
 
-        print(f"image_features shape: {image_features.shape}")  # [num_boxes, feature_dim]
-        print(f"question_state shape: {question_state.shape}")  # [batch_size, hidden_dim]
+        # print(f"image_features shape: {image_features.shape}")  # [num_boxes, feature_dim]
+        # print(f"question_state shape: {question_state.shape}")  # [batch_size, hidden_dim]
 
         image_features = image_features.unsqueeze(0).repeat(batch_size, 1, 1)
-        print(f"repeated image_features shape: {image_features.shape}")
+        # print(f"repeated image_features shape: {image_features.shape}")
 
         image_proj = self.img_feature_proj_layer(image_features)
         question_proj = self.question_state_proj_layer(question_state)
 
-        print(f"image_proj shape: {image_proj.shape}")
-        print(f"question_proj shape: {question_proj.shape}")
+        # print(f"image_proj shape: {image_proj.shape}")
+        # print(f"question_proj shape: {question_proj.shape}")
 
         question_proj = question_proj.unsqueeze(1).expand(-1, num_boxes, -1)  # [batch_size, num_boxes, attention_dim]
-        print(f"expanded question_proj shape: {question_proj.shape}")
+        # print(f"expanded question_proj shape: {question_proj.shape}")
 
         attention_scores = F.tanh(image_proj + question_proj)  # [5, attention_dim]
         attention_weights = F.softmax(self.dense(attention_scores), dim=0)
@@ -54,7 +66,7 @@ class Attention(nn.Module):
         weighted_sum = (image_features * attention_weights).sum(dim=1)
 
         combined_features = torch.cat([weighted_sum, question_state], dim=1)  # [batch_size, feature_dim + hidden_dim]
-        print(f"combined features shape: {combined_features.shape}")
+        # print(f"combined features shape: {combined_features.shape}")
 
         return combined_features, attention_weights
 

@@ -5,7 +5,7 @@ Bottom-up attention is implemented with Faster R-CNN
 Steps:
 -load a pre-trained ResNet-101 model
 -train a region-proposal network to predict object classes and bounding boxes
--use greedy non-maximum suppressoin with IoU threshold to select top box proposals
+-use greedy non-maximum suppression with IoU threshold to select top box proposals
 -use region of interest pooling to extract small feature map for each box
 
 
