@@ -1,1 +1,3 @@
-Visual question answering model by combining a bottom-up image region-proposal network and a top-down feature weighing network to form a joint multimodal embedding of the question and image.
+Visual Question Answering model built with a bottom-up region-proposal network and a top-down question embedding model using pre-trained GloVe embeddings, and integrated using attention mechanism for visual-semantic alignment.
+
+Uses images and question / answer pairs from the COCO dataset.
