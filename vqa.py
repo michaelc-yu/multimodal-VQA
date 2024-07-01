@@ -31,7 +31,8 @@ class VQAModel(nn.Module):
         self.emb.weight.requires_grad = False
 
         # process the sequence of word vectors
-        self.lstm = nn.LSTM(embed_dim, hidden_dim, batch_first=True)
+        # self.lstm = nn.LSTM(embed_dim, hidden_dim, batch_first=True)
+        self.gru = nn.GRU(embed_dim, hidden_dim, num_layers=2, batch_first=True) # encode each question as the hidden state q of a GRU
 
         self.attn = attention.Attention(feature_dim, hidden_dim, attention_dim)
 
@@ -43,7 +44,7 @@ class VQAModel(nn.Module):
 
     def _initialize_weights(self):
         # Initializing the weights for LSTM
-        for name, param in self.lstm.named_parameters():
+        for name, param in self.gru.named_parameters():
             if 'weight' in name:
                 init.xavier_uniform_(param.data)
             elif 'bias' in name:
@@ -57,10 +58,15 @@ class VQAModel(nn.Module):
 
 
     def forward(self, image_features, questions):
+        # print("in vqa forward")
+        # print(f"image features: {image_features}") # image features is a tensor
+        # print(f"questions: {questions}") # questions is a tensor of shape [8, 18]
+
         # embed and process the question using LSTM
         embeddings = self.emb(questions)
-        lstm_out, (question_state, _) = self.lstm(embeddings)
+        gru_out, question_state = self.gru(embeddings)
         question_state = question_state[-1]
+        # print(f"question_state shape: {question_state.shape}") # [8, 512], [batch size x hidden dim]
 
         # compute attention scores for each image region based on the relevance to the question hidden state
         weighted_image_features, attention_weights = self.attn(image_features, question_state)
@@ -269,18 +275,33 @@ transform = transforms.Compose([
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
+def list_to_tensor(tensor_list, padding_value=0):
+    max_num_boxes = max(tensor.size(0) for tensor in tensor_list)
+
+    padded_tensors = []
+    for tensor in tensor_list:
+        num_boxes, feature_dim = tensor.shape
+        padded_tensor = torch.full((max_num_boxes, feature_dim), padding_value, dtype=tensor.dtype, device=tensor.device)
+        padded_tensor[:num_boxes, :] = tensor
+        padded_tensors.append(padded_tensor)
+
+    res = torch.stack(padded_tensors, dim=0)
+    return res
+
 
 image_dir = "train2014"
+batch_size = 8
 
-dataset = VQADataset(flattened_data, word_to_idx, answer_to_idx, image_dir, transform=transform)
-train_loader = DataLoader(dataset, batch_size=8, shuffle=False)
+dataset = VQADataset(resampled_data, word_to_idx, answer_to_idx, image_dir, transform=transform)
+train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 bottom_up_model = fasterrcnn_resnet50_fpn(weights='DEFAULT')
 bottom_up_model.to(device) # Move bottom-up model to GPU
 bottom_up_model.eval()
 
 # feature_dim = 4 for 4 floats per bounding box
-vqamodel = VQAModel(feature_dim=4, embed_dim=256, hidden_dim=512, vocab_size=len(vocab), answer_vocab_size=len(common_answers), attention_dim=128, embedding_matrix=embedding_matrix)
+# vqamodel = VQAModel(feature_dim=4, embed_dim=256, hidden_dim=512, vocab_size=len(vocab), answer_vocab_size=len(common_answers), attention_dim=128, embedding_matrix=embedding_matrix)
+vqamodel = VQAModel(feature_dim=4, embed_dim=50, hidden_dim=512, vocab_size=len(vocab), answer_vocab_size=len(common_answers), attention_dim=128, embedding_matrix=embedding_matrix)
 vqamodel.to(device)  # Move VQAModel to GPU
 vqamodel.train()
 
@@ -301,8 +322,24 @@ for epoch in range(num_epochs):
         questions = questions.to(device)
         answers = answers.to(device)
 
-        image_features = bottom_up_model(images)[0]['boxes'].to(device)
+        # image_features = bottom_up_model(images)[0]['boxes'].to(device)
+        # image_features = [bottom_up_model(images)[i]['boxes'].to(device) for i in range(8)]
+        all_image_features = []
+
+        for i in range(batch_size):
+            image = images[i].unsqueeze(0)
+            with torch.no_grad():
+                output = bottom_up_model(image)
+            # print(f"output image feats: {output}")
+            image_features = output[0]['boxes'].to(device)
+            all_image_features.append(image_features)
+        
+        image_features = list_to_tensor(all_image_features)
+
         # print(f"image_features: {image_features}")
+        # print(f"len image_features: {len(image_features)}") # equal to batch size
+        # print(f"image features shape: {image_features.shape}")
+        # print(f"questions size: {questions.size()}")
 
         output, _ = vqamodel(image_features, questions)
         # print(f"output: {output}")

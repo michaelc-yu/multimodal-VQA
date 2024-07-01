@@ -39,16 +39,15 @@ class Attention(nn.Module):
         # print("In Attention forward method")
         # print(f"image_features: {image_features}")
         # print(f"question_state: {question_state}")
-        # print(f"image_features shape: {image_features.shape}")
-        # print(f"question_state shape: {question_state.shape}")
+        # print(f"image_features shape: {image_features.shape}") # [8, 13, 4]
+        # print(f"question_state shape: {question_state.shape}") # [8, 512]
 
-        num_boxes, feature_dim = image_features.size()
+        batch_size, num_boxes, feature_dim = image_features.size()
         batch_size, hidden_dim = question_state.size()
 
         # print(f"image_features shape: {image_features.shape}")  # [num_boxes, feature_dim]
         # print(f"question_state shape: {question_state.shape}")  # [batch_size, hidden_dim]
 
-        image_features = image_features.unsqueeze(0).repeat(batch_size, 1, 1)
         # print(f"repeated image_features shape: {image_features.shape}")
 
         image_proj = self.img_feature_proj_layer(image_features)
@@ -60,8 +59,10 @@ class Attention(nn.Module):
         question_proj = question_proj.unsqueeze(1).expand(-1, num_boxes, -1)  # [batch_size, num_boxes, attention_dim]
         # print(f"expanded question_proj shape: {question_proj.shape}")
 
-        attention_scores = F.tanh(image_proj + question_proj)  # [5, attention_dim]
-        attention_weights = F.softmax(self.dense(attention_scores), dim=0)
+        attention_scores = F.tanh(image_proj + question_proj)
+        attention_weights = F.softmax(self.dense(attention_scores), dim=1)
+
+        # print(f"attention weights shape: {attention_weights.shape}")
 
         weighted_sum = (image_features * attention_weights).sum(dim=1)
 
