@@ -20,6 +20,7 @@ import attention
 import helpers
 
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class VQAModel(nn.Module):
     def __init__(self, feature_dim, embed_dim, hidden_dim, vocab_size, answer_vocab_size, attention_dim, embedding_matrix):
@@ -272,15 +273,15 @@ transform = transforms.Compose([
 image_dir = "train2014"
 
 dataset = VQADataset(flattened_data, word_to_idx, answer_to_idx, image_dir, transform=transform)
-
 train_loader = DataLoader(dataset, batch_size=8, shuffle=False)
 
-
 bottom_up_model = fasterrcnn_resnet50_fpn(weights='DEFAULT')
+bottom_up_model.to(device) # Move bottom-up model to GPU
 bottom_up_model.eval()
 
 # feature_dim = 4 for 4 floats per bounding box
 vqamodel = VQAModel(feature_dim=4, embed_dim=256, hidden_dim=512, vocab_size=len(vocab), answer_vocab_size=len(common_answers), attention_dim=128, embedding_matrix=embedding_matrix)
+vqamodel.to(device)  # Move VQAModel to GPU
 vqamodel.train()
 
 print("starting to train")
@@ -295,7 +296,12 @@ for epoch in range(num_epochs):
         # print(f"questions: {questions}")
         # print(f"answers: {answers}")
         optimizer.zero_grad()
-        image_features = bottom_up_model(images)[0]['boxes']
+
+        images = images.to(device)
+        questions = questions.to(device)
+        answers = answers.to(device)
+
+        image_features = bottom_up_model(images)[0]['boxes'].to(device)
         # print(f"image_features: {image_features}")
 
         output, _ = vqamodel(image_features, questions)
@@ -319,6 +325,9 @@ for epoch in range(num_epochs):
     print(f"epoch: {epoch+1}/{num_epochs} | loss: {loss_accum/len(train_loader)}")
 
 
+torch.save(vqamodel.state_dict(), 'vqamodel.pth')
+
+# vqamodel.load_state_dict(torch.load('vqamodel.pth'))
 # vqamodel.eval()
 
 # test_img = "test-images/COCO_train2014_000000086927.jpg"
