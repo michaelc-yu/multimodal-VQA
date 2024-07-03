@@ -30,13 +30,11 @@ def create_vocab_list(all_data):
     # <PAD> for padding questions to same length
     vocab = ["<UNK>", "<PAD>"]
     for item in all_data:
-        questions = item['questions']
-        for question in questions:
-            question_txt = question['question']
-            words = question_txt.split()
-            for word in words:
-                if word not in vocab:
-                    vocab.append(word)
+        question_txt = item['question']
+        words = question_txt.split()
+        for word in words:
+            if word not in vocab:
+                vocab.append(word)
     return vocab
 
 def get_candidate_answers(annotations, threshold):

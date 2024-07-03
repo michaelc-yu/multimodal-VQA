@@ -246,10 +246,30 @@ new_answer_counts = collections.Counter([entry['answer'].lower() for entry in re
 print("New answer distribution:")
 print(new_answer_counts)
 
+desired_count = 300
+downsampled_data = []
+data_by_class_resampled = collections.defaultdict(list)
 
+for entry in resampled_data:
+    data_by_class_resampled[entry['answer'].lower()].append(entry)
 
+for answer, data in data_by_class_resampled.items():
+    if len(data) > desired_count:
+        downsampled_data.extend(resample(data, replace=False, n_samples=desired_count, random_state=42))
+    else:
+        downsampled_data.extend(data)
 
-vocab = helpers.create_vocab_list(filtered_data_list)
+# Check the new distribution
+final_answer_counts = collections.Counter([entry['answer'].lower() for entry in downsampled_data])
+print("Final answer distribution:")
+print(final_answer_counts)
+
+# print("downsampled data:")
+# print(downsampled_data)
+
+final_dataset = downsampled_data
+
+vocab = helpers.create_vocab_list(final_dataset)
 word_to_idx = {word: idx for idx, word in enumerate(vocab)}
 # print(f"vocab: {vocab}")
 print(f"length of vocab: {len(vocab)}")
@@ -288,7 +308,7 @@ def list_to_tensor(tensor_list, padding_value=0):
 image_dir = "train2014"
 batch_size = 8
 
-dataset = VQADataset(resampled_data, word_to_idx, answer_to_idx, image_dir, transform=transform)
+dataset = VQADataset(final_dataset, word_to_idx, answer_to_idx, image_dir, transform=transform)
 train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 bottom_up_model = fasterrcnn_resnet50_fpn(weights='DEFAULT')
