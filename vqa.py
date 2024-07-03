@@ -205,17 +205,11 @@ for datum in data_list:
     if datum['questions'] and datum['answers']:
         filtered_data_list.append(datum)
 
-
-# print("new data list:")
-# for i in range(len(filtered_data_list)):
-#     print(filtered_data_list[i])
-#     print("")
-
 print(f"{len(filtered_data_list)} filtered data")
 
 
 flattened_data = []
-for entry in data_list:
+for entry in filtered_data_list:
     image_file = entry['image_file']
     for question, answer in zip(entry['questions'], entry['answers']):
         flattened_data.append({
@@ -223,7 +217,7 @@ for entry in data_list:
             'question': question['question'],
             'answer': answer
         })
-print(f"Total number of samples: {len(flattened_data)}")
+print(f"{len(flattened_data)} flattened data")
 
 answer_counts = collections.Counter([entry['answer'].lower() for entry in flattened_data])
 
@@ -244,6 +238,8 @@ for answer, data in data_by_class.items():
         resampled_data.extend(resample(data, replace=True, n_samples=max_count, random_state=42))
     else:
         resampled_data.extend(data)
+
+print(f"{len(resampled_data)} resampled data")
 
 # Check the new distribution
 new_answer_counts = collections.Counter([entry['answer'].lower() for entry in resampled_data])
