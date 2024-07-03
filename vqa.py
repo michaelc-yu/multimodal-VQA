@@ -269,6 +269,8 @@ print(final_answer_counts)
 
 final_dataset = downsampled_data
 
+print(f"length of final dataset: {len(final_dataset)}")
+
 vocab = helpers.create_vocab_list(final_dataset)
 word_to_idx = {word: idx for idx, word in enumerate(vocab)}
 # print(f"vocab: {vocab}")
@@ -380,7 +382,8 @@ for epoch in range(num_epochs):
 
 torch.save(vqamodel.state_dict(), 'vqamodel.pth')
 
-vqamodel.load_state_dict(torch.load('vqamodel.pth'))
+vqamodel.load_state_dict(torch.load('vqamodel.pth', map_location=torch.device('cpu')))
+# was trained on 00009.jpg to 0001497.jpg
 vqamodel.eval()
 
 
