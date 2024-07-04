@@ -387,26 +387,30 @@ vqamodel.load_state_dict(torch.load('vqamodel.pth', map_location=torch.device('c
 vqamodel.eval()
 
 
-test_img = "test-images/COCO_train2014_000000005946.jpg"
-
-test_img = Image.open(test_img).convert('RGB')
-test_img = transform(test_img)
-test_img = test_img.unsqueeze(0).to(device)
-img_features = [bottom_up_model(test_img)[0]['boxes'].to(device)]
-img_features = list_to_tensor(img_features)
-
 while True:
-    user_question = input("Enter a question: ")
-    if user_question == "quit":
+    img_file = input("Enter an image filename, or 'quit' to end:")
+    if img_file == "quit":
         break
-    print(user_question)
-    q_tokens = user_question.lower().strip().split()
-    q_indices = [word_to_idx.get(token, word_to_idx["<UNK>"]) for token in q_tokens]
-    q_tensor = torch.tensor(q_indices, dtype=torch.long).unsqueeze(0).to(device)
 
-    with torch.no_grad():
-        output, _ = vqamodel(img_features, q_tensor)
-        ans_idx = torch.argmax(output, dim=1)
-        ans = common_answers[ans_idx]
-        print(f"answer: {ans}")
+    test_img = f"test-images/{img_file}"
+    test_img = Image.open(test_img).convert('RGB')
+    test_img = transform(test_img)
+    test_img = test_img.unsqueeze(0).to(device)
+    img_features = [bottom_up_model(test_img)[0]['boxes'].to(device)]
+    img_features = list_to_tensor(img_features)
+
+    while True:
+        user_question = input("Enter a question, or 'quit' to end: ")
+        if user_question == "quit":
+            break
+        print(user_question)
+        q_tokens = user_question.lower().strip().split()
+        q_indices = [word_to_idx.get(token, word_to_idx["<UNK>"]) for token in q_tokens]
+        q_tensor = torch.tensor(q_indices, dtype=torch.long).unsqueeze(0).to(device)
+
+        with torch.no_grad():
+            output, _ = vqamodel(img_features, q_tensor)
+            ans_idx = torch.argmax(output, dim=1)
+            ans = common_answers[ans_idx]
+            print(f"answer: {ans}")
 
