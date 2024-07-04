@@ -22,6 +22,10 @@ class Attention(nn.Module):
         super(Attention, self).__init__()
         self.img_feature_proj_layer = nn.Linear(feature_dim, attention_dim)
         self.question_state_proj_layer = nn.Linear(hidden_dim, attention_dim)
+
+        self.gated_tanh_layer = nn.Linear(attention_dim, attention_dim)
+        self.gate_layer = nn.Linear(attention_dim, attention_dim)
+
         self.dense = nn.Linear(attention_dim, 1)
 
         self._initialize_weights()
@@ -56,18 +60,18 @@ class Attention(nn.Module):
         # print(f"image_proj shape: {image_proj.shape}")
         # print(f"question_proj shape: {question_proj.shape}")
 
+        # Combining projections
         question_proj = question_proj.unsqueeze(1).expand(-1, num_boxes, -1)  # [batch_size, num_boxes, attention_dim]
         # print(f"expanded question_proj shape: {question_proj.shape}")
+        combined_representation = image_proj + question_proj
+        gated_tanh = torch.tanh(self.gated_tanh_layer(combined_representation))
+        gate = torch.sigmoid(self.gate_layer(combined_representation))
+        gated_output = gated_tanh * gate
 
-        attention_scores = F.tanh(image_proj + question_proj)
-        attention_weights = F.softmax(self.dense(attention_scores), dim=1)
+        attention_weights = F.softmax(self.dense(gated_output), dim=1)
 
         # print(f"attention weights shape: {attention_weights.shape}")
 
-        weighted_sum = (image_features * attention_weights).sum(dim=1)
-
-        combined_features = torch.cat([weighted_sum, question_state], dim=1)  # [batch_size, feature_dim + hidden_dim]
-        # print(f"combined features shape: {combined_features.shape}")
-
-        return combined_features, attention_weights
+        weighted_image_features = (image_features * attention_weights).sum(dim=1)
+        return weighted_image_features, attention_weights
 

@@ -36,9 +36,14 @@ class VQAModel(nn.Module):
 
         self.attn = attention.Attention(feature_dim, hidden_dim, attention_dim)
 
-        self.dense1 = nn.Linear(hidden_dim + hidden_dim + feature_dim, hidden_dim)
+        self.dense1 = nn.Linear(hidden_dim, hidden_dim)
         self.dropout = nn.Dropout(p=0.5) # apply dropout
         self.dense2 = nn.Linear(hidden_dim, answer_vocab_size)
+
+        self.gated_tanh_layer = nn.Linear(hidden_dim, hidden_dim)
+        self.gate_layer = nn.Linear(hidden_dim, hidden_dim)
+
+        self.proj_layer = nn.Linear(feature_dim, hidden_dim)
 
         self._initialize_weights()
 
@@ -56,7 +61,6 @@ class VQAModel(nn.Module):
         init.xavier_uniform_(self.dense2.weight.data)
         self.dense2.bias.data.fill_(0)
 
-
     def forward(self, image_features, questions):
         # print("in vqa forward")
         # print(f"image features: {image_features}") # image features is a tensor
@@ -72,16 +76,24 @@ class VQAModel(nn.Module):
         weighted_image_features, attention_weights = self.attn(image_features, question_state)
 
         # print(f"weighted image after applying attention: {weighted_image_features}")
-        # print(f"weighted image features shape: {weighted_image_features.shape}")
-        # print(f"hidden state shape: {question_state.shape}")
+        weighted_image_features = self.proj_layer(weighted_image_features)
+        # print(f"weighted image features shape: {weighted_image_features.shape}") # [batch_size, 512]
+        # print(f"question state shape: {question_state.shape}") # [batch_size, 512]
         # joint multimodal embedding of the question and the image
-        combined = torch.cat((weighted_image_features, question_state), dim=1)
-        # print(f"combined shape {combined.shape}") # [batch_size, 1028]
+        # should be done using an element-wise product, which means 
+        # each element in the context vector is multiplied by the corresponding element in the question vector
+        combined = weighted_image_features * question_state
+        # print(f"combined shape {combined.shape}") # [batch_size, 512]
 
-        combined = self.dense1(combined)
-        combined = F.relu(combined)
-        combined = self.dropout(combined) # apply dropout
-        output = self.dense2(combined)
+        gated_tanh = torch.tanh(self.gated_tanh_layer(combined))
+        gate = torch.sigmoid(self.gate_layer(combined))
+        x = gated_tanh * gate
+        # print(f"x shape: {x.shape}") # [batch_size, 512]
+
+        x = F.relu(self.dense1(x))
+
+        x = self.dropout(x) # apply dropout
+        output = self.dense2(x)
         return output, attention_weights
 
 
@@ -286,18 +298,25 @@ embedding_matrix = helpers.create_embedding_matrix(vocab, glove_embeddings, embe
 print(f"embedding_matrix shape: {embedding_matrix.shape}")
 
 
-# Define transformation for images
+# Transform images to tensors
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
-def list_to_tensor(tensor_list, padding_value=0):
+def list_to_tensor(list_of_lists, padding_value=0):
+    tensor_list = []
+    for boxes in list_of_lists:
+        if len(boxes) == 0:
+            tensor_list.append(torch.empty((0, 4), dtype=torch.float32))
+        else:
+            tensor_list.append(torch.tensor(boxes, dtype=torch.float32))
     max_num_boxes = max(tensor.size(0) for tensor in tensor_list)
 
     padded_tensors = []
     for tensor in tensor_list:
+        # print(f"tensor: {tensor}")
+        # print(f"tensor shape: {tensor.shape}")
         num_boxes, feature_dim = tensor.shape
         padded_tensor = torch.full((max_num_boxes, feature_dim), padding_value, dtype=tensor.dtype, device=tensor.device)
         padded_tensor[:num_boxes, :] = tensor
@@ -307,7 +326,6 @@ def list_to_tensor(tensor_list, padding_value=0):
     return res
 
 
-image_dir = "train2014"
 batch_size = 8
 
 dataset = VQADataset(final_dataset, word_to_idx, answer_to_idx, image_dir, transform=transform)
@@ -327,6 +345,7 @@ print("starting to train")
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(vqamodel.parameters(), lr=0.001)
+threshold = 0.7
 
 num_epochs = 5
 for epoch in range(num_epochs):
@@ -340,18 +359,25 @@ for epoch in range(num_epochs):
         questions = questions.to(device)
         answers = answers.to(device)
 
-        # image_features = bottom_up_model(images)[0]['boxes'].to(device)
-        # image_features = [bottom_up_model(images)[i]['boxes'].to(device) for i in range(8)]
         all_image_features = []
 
         for i in range(batch_size):
             image = images[i].unsqueeze(0)
             with torch.no_grad():
                 output = bottom_up_model(image)
-            # print(f"output image feats: {output}")
-            image_features = output[0]['boxes'].to(device)
-            all_image_features.append(image_features)
-        
+                boxes = output[0]['boxes']
+                labels = output[0]['labels']
+                scores = output[0]['scores']
+
+                filtered_boxes = []
+                for i in range(len(labels)):
+                    score = scores[i].item()
+                    if score > threshold:
+                        filtered_boxes.append(boxes[i].tolist())
+
+                all_image_features.append(filtered_boxes)
+        # print(f"all image features: {all_image_features}")
+
         image_features = list_to_tensor(all_image_features)
 
         # print(f"image_features: {image_features}")
