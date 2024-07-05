@@ -190,9 +190,11 @@ for entry in data.values():
     for answer in entry['answers']:
         answer_counts[answer] += 1
 
-# print(f"Answer distribution: {answer_counts}")
+print(f"Original answer distribution: {answer_counts}")
 
-common_answers = ['yes', 'no', '2', '1', 'white', '3', 'blue', '0', 'black', 'red', 'brown', 'green', 'yellow', '4', 'gray', 'nothing', 'frisbee', 'baseball', 'none', 'wood', 'silver', 'pizza', '5', '7', 'grass', 'tennis', 'orange', 'skiing', 'man', 'pink', 'left', 'snowboarding', 'cat', 'donut', 'kitchen', 'right', '6', 'dog', 'sandwich', 'umbrella', 'suitcase', 'surfing', 'giraffe', 'bird', '8', 'pepperoni', 'female', 'sunny', 'china airlines', 'fork', 'bus', 'cow', '10']
+# common_answers = ['yes', 'no', '2', '1', 'white', '3', 'blue', '0', 'black', 'red', 'brown', 'green', 'yellow', '4', 'gray', 'nothing', 'frisbee', 'baseball', 'none', 'wood', 'silver', 'pizza', '5', '7', 'grass', 'tennis', 'orange', 'skiing', 'man', 'pink', 'left', 'snowboarding', 'cat', 'donut', 'kitchen', 'right', '6', 'dog', 'sandwich', 'umbrella', 'suitcase', 'surfing', 'giraffe', 'bird', '8', 'pepperoni', 'female', 'sunny', 'china airlines', 'fork', 'bus', 'cow', '10']
+
+common_answers = [item[0] for item in answer_counts.most_common(90)]
 
 common_answers.append('UNK')
 
@@ -233,7 +235,7 @@ print(f"{len(flattened_data)} flattened data")
 
 answer_counts = collections.Counter([entry['answer'].lower() for entry in flattened_data])
 
-print("Original answer distribution:")
+print("Filtered answer distribution:")
 print(answer_counts)
 
 max_count = max(answer_counts.values())
@@ -255,10 +257,10 @@ print(f"{len(resampled_data)} resampled data")
 
 # Check the new distribution
 new_answer_counts = collections.Counter([entry['answer'].lower() for entry in resampled_data])
-print("New answer distribution:")
+print("Resampled answer distribution:")
 print(new_answer_counts)
 
-desired_count = 300
+desired_count = 224
 downsampled_data = []
 data_by_class_resampled = collections.defaultdict(list)
 
@@ -273,7 +275,7 @@ for answer, data in data_by_class_resampled.items():
 
 # Check the new distribution
 final_answer_counts = collections.Counter([entry['answer'].lower() for entry in downsampled_data])
-print("Final answer distribution:")
+print("Final downsampled answer distribution:")
 print(final_answer_counts)
 
 # print("downsampled data:")
@@ -326,7 +328,7 @@ def list_to_tensor(list_of_lists, padding_value=0):
     return res
 
 
-batch_size = 8
+batch_size = 32
 
 dataset = VQADataset(final_dataset, word_to_idx, answer_to_idx, image_dir, transform=transform)
 train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
@@ -378,7 +380,7 @@ for epoch in range(num_epochs):
                 all_image_features.append(filtered_boxes)
         # print(f"all image features: {all_image_features}")
 
-        image_features = list_to_tensor(all_image_features)
+        image_features = list_to_tensor(all_image_features).to(device)
 
         # print(f"image_features: {image_features}")
         # print(f"len image_features: {len(image_features)}") # equal to batch size
@@ -422,8 +424,15 @@ while True:
     test_img = Image.open(test_img).convert('RGB')
     test_img = transform(test_img)
     test_img = test_img.unsqueeze(0).to(device)
-    img_features = [bottom_up_model(test_img)[0]['boxes'].to(device)]
-    img_features = list_to_tensor(img_features)
+    output = bottom_up_model(test_img)
+    boxes = output[0]['boxes']
+    labels = output[0]['labels']
+    scores = output[0]['scores']
+
+    filtered_boxes = [boxes[i].tolist() for i in range(len(labels)) if scores[i].item() > threshold]
+
+    img_features = torch.tensor(filtered_boxes, dtype=torch.float32).unsqueeze(0).to(device)
+    print("")
 
     while True:
         user_question = input("Enter a question, or 'quit' to end: ")
