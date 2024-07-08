@@ -165,12 +165,16 @@ def get_image_id(filename):
     prefix = "COCO_train2014_"
     suffix = ".jpg"
     image_id_str = filename[len(prefix):-len(suffix)]
+    if image_id_str == '':
+        return None
     image_id = int(image_id_str)
     return image_id
 
 # Populate the data structure with image file names
 for filename in image_files:
     image_id = get_image_id(filename)
+    if image_id == None:
+        continue
     data[image_id]['image_file'] = filename
 
 # Populate the data structure with questions
@@ -333,6 +337,8 @@ batch_size = 32
 dataset = VQADataset(final_dataset, word_to_idx, answer_to_idx, image_dir, transform=transform)
 train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
+print(f"Max question length in dataset: {dataset.get_max_question_len()}")
+
 bottom_up_model = fasterrcnn_resnet50_fpn(weights='DEFAULT')
 bottom_up_model.to(device) # Move bottom-up model to GPU
 bottom_up_model.eval()
@@ -385,7 +391,8 @@ for epoch in range(num_epochs):
         # print(f"image_features: {image_features}")
         # print(f"len image_features: {len(image_features)}") # equal to batch size
         # print(f"image features shape: {image_features.shape}")
-        # print(f"questions size: {questions.size()}")
+        print(f"questions size: {questions.size()}") # [32, 18] -> [batch size, max q len]
+        print(f"questions shape: {questions.shape}")
 
         output, _ = vqamodel(image_features, questions)
         # print(f"output: {output}")
@@ -410,10 +417,13 @@ for epoch in range(num_epochs):
 
 torch.save(vqamodel.state_dict(), 'vqamodel.pth')
 
-vqamodel.load_state_dict(torch.load('vqamodel.pth', map_location=torch.device('cpu')))
+# vqamodel.load_state_dict(torch.load('vqamodel.pth', map_location=torch.device('cpu')))
 # was trained on 00009.jpg to 0001497.jpg
 vqamodel.eval()
 
+
+max_q_len = dataset.get_max_question_len()
+print(f"testing time, max q len: {max_q_len}")
 
 while True:
     img_file = input("Enter an image filename, or 'quit' to end:")
@@ -439,9 +449,17 @@ while True:
         if user_question == "quit":
             break
         print(user_question)
+
         q_tokens = user_question.lower().strip().split()
         q_indices = [word_to_idx.get(token, word_to_idx["<UNK>"]) for token in q_tokens]
+        if len(q_indices) < max_q_len:
+            q_indices += [word_to_idx["<PAD>"]] * (max_q_len - len(q_indices))
+
+        print(f"len of q indices: {len(q_indices)}")
+
         q_tensor = torch.tensor(q_indices, dtype=torch.long).unsqueeze(0).to(device)
+
+        print(f"q tensor shape: {q_tensor.shape}") # [1, 18] -> [batch_size, max q len]
 
         with torch.no_grad():
             output, _ = vqamodel(img_features, q_tensor)
