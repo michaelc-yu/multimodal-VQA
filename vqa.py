@@ -31,13 +31,12 @@ class VQAModel(nn.Module):
         self.emb.weight.requires_grad = False
 
         # process the sequence of word vectors
-        # self.lstm = nn.LSTM(embed_dim, hidden_dim, batch_first=True)
-        self.gru = nn.GRU(embed_dim, hidden_dim, num_layers=2, batch_first=True) # encode each question as the hidden state q of a GRU
+        self.gru = nn.GRU(embed_dim, hidden_dim, num_layers=2, batch_first=True)
 
         self.attn = attention.Attention(feature_dim, hidden_dim, attention_dim)
 
         self.dense1 = nn.Linear(hidden_dim, hidden_dim)
-        self.dropout = nn.Dropout(p=0.5) # apply dropout
+        self.dropout = nn.Dropout(p=0.5)
         self.dense2 = nn.Linear(hidden_dim, answer_vocab_size)
 
         self.gated_tanh_layer = nn.Linear(hidden_dim, hidden_dim)
@@ -415,10 +414,9 @@ for epoch in range(num_epochs):
     print(f"epoch: {epoch+1}/{num_epochs} | loss: {loss_accum/len(train_loader)}")
 
 
-torch.save(vqamodel.state_dict(), 'vqamodel.pth')
+# torch.save(vqamodel.state_dict(), 'vqamodel.pth')
 
 # vqamodel.load_state_dict(torch.load('vqamodel.pth', map_location=torch.device('cpu')))
-# was trained on 00009.jpg to 0001497.jpg
 vqamodel.eval()
 
 
@@ -426,7 +424,7 @@ max_q_len = dataset.get_max_question_len()
 print(f"testing time, max q len: {max_q_len}")
 
 while True:
-    img_file = input("Enter an image filename, or 'quit' to end:")
+    img_file = input("Enter an image filename, or 'quit' to end: ")
     if img_file == "quit":
         break
 
