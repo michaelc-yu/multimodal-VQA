@@ -46,3 +46,47 @@ def get_candidate_answers(annotations, threshold):
     answer_vocab.append("<UNK>")
     return answer_vocab
 
+
+def list_to_tensor(list_of_lists, padding_value=0):
+    tensor_list = []
+    for boxes in list_of_lists:
+        if len(boxes) == 0:
+            tensor_list.append(torch.empty((0, 4), dtype=torch.float32))
+        else:
+            tensor_list.append(torch.tensor(boxes, dtype=torch.float32))
+    max_num_boxes = max(tensor.size(0) for tensor in tensor_list)
+
+    padded_tensors = []
+    for tensor in tensor_list:
+        # print(f"tensor: {tensor}")
+        # print(f"tensor shape: {tensor.shape}")
+        num_boxes, feature_dim = tensor.shape
+        padded_tensor = torch.full((max_num_boxes, feature_dim), padding_value, dtype=tensor.dtype, device=tensor.device)
+        padded_tensor[:num_boxes, :] = tensor
+        padded_tensors.append(padded_tensor)
+
+    res = torch.stack(padded_tensors, dim=0)
+    return res
+
+def get_features_from_images(images, batch_size, model, threshold):
+    all_image_features = []
+
+    for i in range(batch_size):
+        image = images[i].unsqueeze(0)
+        with torch.no_grad():
+            output = model(image)
+            boxes = output[0]['boxes']
+            labels = output[0]['labels']
+            scores = output[0]['scores']
+
+            filtered_boxes = []
+            for i in range(len(labels)):
+                score = scores[i].item()
+                if score > threshold:
+                    filtered_boxes.append(boxes[i].tolist())
+
+            all_image_features.append(filtered_boxes)
+
+    image_features = list_to_tensor(all_image_features)
+    return image_features
+

@@ -306,27 +306,6 @@ transform = transforms.Compose([
     transforms.ToTensor(),
 ])
 
-def list_to_tensor(list_of_lists, padding_value=0):
-    tensor_list = []
-    for boxes in list_of_lists:
-        if len(boxes) == 0:
-            tensor_list.append(torch.empty((0, 4), dtype=torch.float32))
-        else:
-            tensor_list.append(torch.tensor(boxes, dtype=torch.float32))
-    max_num_boxes = max(tensor.size(0) for tensor in tensor_list)
-
-    padded_tensors = []
-    for tensor in tensor_list:
-        # print(f"tensor: {tensor}")
-        # print(f"tensor shape: {tensor.shape}")
-        num_boxes, feature_dim = tensor.shape
-        padded_tensor = torch.full((max_num_boxes, feature_dim), padding_value, dtype=tensor.dtype, device=tensor.device)
-        padded_tensor[:num_boxes, :] = tensor
-        padded_tensors.append(padded_tensor)
-
-    res = torch.stack(padded_tensors, dim=0)
-    return res
-
 
 batch_size = 32
 
@@ -336,13 +315,12 @@ train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 print(f"Max question length in dataset: {dataset.get_max_question_len()}")
 
 bottom_up_model = fasterrcnn_resnet50_fpn(weights='DEFAULT')
-bottom_up_model.to(device) # Move bottom-up model to GPU
+bottom_up_model.to(device)
 bottom_up_model.eval()
 
 # feature_dim = 4 for 4 floats per bounding box
-# vqamodel = VQAModel(feature_dim=4, embed_dim=256, hidden_dim=512, vocab_size=len(vocab), answer_vocab_size=len(common_answers), attention_dim=128, embedding_matrix=embedding_matrix)
 vqamodel = VQAModel(feature_dim=4, embed_dim=50, hidden_dim=512, vocab_size=len(vocab), answer_vocab_size=len(common_answers), attention_dim=128, embedding_matrix=embedding_matrix)
-vqamodel.to(device)  # Move VQAModel to GPU
+vqamodel.to(device)
 vqamodel.train()
 
 print("starting to train")
@@ -363,32 +341,14 @@ for epoch in range(num_epochs):
         questions = questions.to(device)
         answers = answers.to(device)
 
-        all_image_features = []
-
-        for i in range(batch_size):
-            image = images[i].unsqueeze(0)
-            with torch.no_grad():
-                output = bottom_up_model(image)
-                boxes = output[0]['boxes']
-                labels = output[0]['labels']
-                scores = output[0]['scores']
-
-                filtered_boxes = []
-                for i in range(len(labels)):
-                    score = scores[i].item()
-                    if score > threshold:
-                        filtered_boxes.append(boxes[i].tolist())
-
-                all_image_features.append(filtered_boxes)
-        # print(f"all image features: {all_image_features}")
-
-        image_features = list_to_tensor(all_image_features).to(device)
+        # this is the bottom-up process that extracts the image features (bounding boxes) from raw images
+        image_features = helpers.get_features_from_images(images, batch_size, bottom_up_model, threshold).to(device)
 
         # print(f"image_features: {image_features}")
         # print(f"len image_features: {len(image_features)}") # equal to batch size
         # print(f"image features shape: {image_features.shape}")
-        print(f"questions size: {questions.size()}") # [32, 18] -> [batch size, max q len]
-        print(f"questions shape: {questions.shape}")
+        # print(f"questions size: {questions.size()}") # [32, 18] -> [batch size, max q len]
+        # print(f"questions shape: {questions.shape}")
 
         output, _ = vqamodel(image_features, questions)
         # print(f"output: {output}")
@@ -400,7 +360,7 @@ for epoch in range(num_epochs):
         predicted_answer_texts = [common_answers[idx.item()] for idx in predicted_answer_idx]
         print(f"Predicted answers: {predicted_answer_texts}")
 
-        print(f"actual answers: {[common_answers[answer] for answer in answers]}")
+        print(f"Actual answers: {[common_answers[answer] for answer in answers]}")
         # print(f"actual answer shape: {answers.shape}")
 
         loss = criterion(output, answers)
@@ -414,51 +374,84 @@ for epoch in range(num_epochs):
 # torch.save(vqamodel.state_dict(), 'vqamodel.pth')
 
 # vqamodel.load_state_dict(torch.load('vqamodel.pth', map_location=torch.device('cpu')))
+print("done training, starting eval")
 vqamodel.eval()
-
 
 max_q_len = dataset.get_max_question_len()
 print(f"testing time, max q len: {max_q_len}")
 
-while True:
-    img_file = input("Enter an image filename, or 'quit' to end: ")
-    if img_file == "quit":
-        break
 
-    test_img = f"test-images/{img_file}"
-    test_img = Image.open(test_img).convert('RGB')
-    test_img = transform(test_img)
-    test_img = test_img.unsqueeze(0).to(device)
-    output = bottom_up_model(test_img)
-    boxes = output[0]['boxes']
-    labels = output[0]['labels']
-    scores = output[0]['scores']
+# batch_size = 4
+# test_dataset = VQADataset(final_dataset, word_to_idx, answer_to_idx, image_dir, transform=transform)
+# test_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-    filtered_boxes = [boxes[i].tolist() for i in range(len(labels)) if scores[i].item() > threshold]
+# total_loss = 0.0
+# correct = 0
+# total = 0
 
-    img_features = torch.tensor(filtered_boxes, dtype=torch.float32).unsqueeze(0).to(device)
-    print("")
+# with torch.no_grad():
+#     for questions, answers, images in test_loader:
+#         images = images.to(device)
+#         questions = questions.to(device)
+#         answers = answers.to(device)
 
-    while True:
-        user_question = input("Enter a question, or 'quit' to end: ")
-        if user_question == "quit":
-            break
-        print(user_question)
+#         # this is the bottom-up process that extracts the image features (bounding boxes) from raw images
+#         image_features = helpers.get_features_from_images(images, batch_size, bottom_up_model, threshold).to(device)
 
-        q_tokens = user_question.lower().strip().split()
-        q_indices = [word_to_idx.get(token, word_to_idx["<UNK>"]) for token in q_tokens]
-        if len(q_indices) < max_q_len:
-            q_indices += [word_to_idx["<PAD>"]] * (max_q_len - len(q_indices))
+#         output, _ = vqamodel(image_features, questions)
 
-        print(f"len of q indices: {len(q_indices)}")
+#         predicted_answer_idx = torch.argmax(output, dim=1)
+#         predicted_answer_texts = [common_answers[idx.item()] for idx in predicted_answer_idx]
+#         print(f"Predicted answers: {predicted_answer_texts}")
+#         print(f"Actual answers: {[common_answers[answer] for answer in answers]}")
 
-        q_tensor = torch.tensor(q_indices, dtype=torch.long).unsqueeze(0).to(device)
+#         loss = criterion(output, answers)
+#         total_loss += loss.item()
+#         total += answers.size(0)
+#         correct += (predicted_answer_idx == answers).sum().item()
+    
+# average_loss = total_loss / len(test_loader)
+# accuracy = correct / total
 
-        print(f"q tensor shape: {q_tensor.shape}") # [1, 18] -> [batch_size, max q len]
+# while True:
+#     img_file = input("Enter an image filename, or 'quit' to end: ")
+#     if img_file == "quit":
+#         break
 
-        with torch.no_grad():
-            output, _ = vqamodel(img_features, q_tensor)
-            ans_idx = torch.argmax(output, dim=1)
-            ans = common_answers[ans_idx]
-            print(f"answer: {ans}")
+#     test_img = f"test-images/{img_file}"
+#     test_img = Image.open(test_img).convert('RGB')
+#     test_img = transform(test_img)
+#     test_img = test_img.unsqueeze(0).to(device)
+#     output = bottom_up_model(test_img)
+#     boxes = output[0]['boxes']
+#     labels = output[0]['labels']
+#     scores = output[0]['scores']
+
+#     filtered_boxes = [boxes[i].tolist() for i in range(len(labels)) if scores[i].item() > threshold]
+
+#     img_features = torch.tensor(filtered_boxes, dtype=torch.float32).unsqueeze(0).to(device)
+#     print("")
+
+#     while True:
+#         user_question = input("Enter a question, or 'quit' to end: ")
+#         if user_question == "quit":
+#             break
+#         print(user_question)
+
+#         q_tokens = user_question.lower().strip().split()
+#         q_indices = [word_to_idx.get(token, word_to_idx["<UNK>"]) for token in q_tokens]
+#         if len(q_indices) < max_q_len:
+#             q_indices += [word_to_idx["<PAD>"]] * (max_q_len - len(q_indices))
+
+#         print(f"len of q indices: {len(q_indices)}")
+
+#         q_tensor = torch.tensor(q_indices, dtype=torch.long).unsqueeze(0).to(device)
+
+#         print(f"q tensor shape: {q_tensor.shape}") # [1, 18] -> [batch_size, max q len]
+
+#         with torch.no_grad():
+#             output, _ = vqamodel(img_features, q_tensor)
+#             ans_idx = torch.argmax(output, dim=1)
+#             ans = common_answers[ans_idx]
+#             print(f"answer: {ans}")
 
