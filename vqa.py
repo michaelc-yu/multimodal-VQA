@@ -39,7 +39,7 @@ class VQAModel(nn.Module):
         self.dropout = nn.Dropout(p=0.5)
         self.dense2 = nn.Linear(hidden_dim, answer_vocab_size)
 
-        self.gated_tanh_layer = nn.Linear(hidden_dim, hidden_dim)
+        self.tanh_gate_layer = nn.Linear(hidden_dim, hidden_dim)
         self.gate_layer = nn.Linear(hidden_dim, hidden_dim)
 
         self.proj_layer = nn.Linear(feature_dim, hidden_dim)
@@ -47,14 +47,14 @@ class VQAModel(nn.Module):
         self._initialize_weights()
 
     def _initialize_weights(self):
-        # Initializing the weights for LSTM
+        # initialize weights for GRU
         for name, param in self.gru.named_parameters():
             if 'weight' in name:
                 init.xavier_uniform_(param.data)
             elif 'bias' in name:
                 param.data.fill_(0)
 
-        # Initializing weights for dense layers
+        # initialize weights for FC layers
         init.xavier_uniform_(self.dense1.weight.data)
         self.dense1.bias.data.fill_(0)
         init.xavier_uniform_(self.dense2.weight.data)
@@ -84,14 +84,13 @@ class VQAModel(nn.Module):
         combined = weighted_image_features * question_state
         # print(f"combined shape {combined.shape}") # [batch_size, 512]
 
-        gated_tanh = torch.tanh(self.gated_tanh_layer(combined))
+        gated_tanh = torch.tanh(self.tanh_gate_layer(combined))
         gate = torch.sigmoid(self.gate_layer(combined))
         x = gated_tanh * gate
         # print(f"x shape: {x.shape}") # [batch_size, 512]
 
         x = F.relu(self.dense1(x))
-
-        x = self.dropout(x) # apply dropout
+        x = self.dropout(x)
         output = self.dense2(x)
         return output, attention_weights
 
@@ -194,8 +193,6 @@ for entry in data.values():
         answer_counts[answer] += 1
 
 print(f"Original answer distribution: {answer_counts}")
-
-# common_answers = ['yes', 'no', '2', '1', 'white', '3', 'blue', '0', 'black', 'red', 'brown', 'green', 'yellow', '4', 'gray', 'nothing', 'frisbee', 'baseball', 'none', 'wood', 'silver', 'pizza', '5', '7', 'grass', 'tennis', 'orange', 'skiing', 'man', 'pink', 'left', 'snowboarding', 'cat', 'donut', 'kitchen', 'right', '6', 'dog', 'sandwich', 'umbrella', 'suitcase', 'surfing', 'giraffe', 'bird', '8', 'pepperoni', 'female', 'sunny', 'china airlines', 'fork', 'bus', 'cow', '10']
 
 common_answers = [item[0] for item in answer_counts.most_common(90)]
 
