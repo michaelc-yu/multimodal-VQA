@@ -30,7 +30,6 @@ class VQAModel(nn.Module):
         self.emb.weight = nn.Parameter(embedding_matrix)
         self.emb.weight.requires_grad = False
 
-        # process the sequence of word vectors
         self.gru = nn.GRU(embed_dim, hidden_dim, num_layers=2, batch_first=True)
 
         self.attn = attention.Attention(feature_dim, hidden_dim, attention_dim)
@@ -65,7 +64,7 @@ class VQAModel(nn.Module):
         # print(f"image features: {image_features}") # image features is a tensor
         # print(f"questions: {questions}") # questions is a tensor of shape [8, 18]
 
-        # embed and process the question using LSTM
+        # embed and process the question using GRU
         embeddings = self.emb(questions)
         gru_out, question_state = self.gru(embeddings)
         question_state = question_state[-1]
@@ -78,9 +77,7 @@ class VQAModel(nn.Module):
         weighted_image_features = self.proj_layer(weighted_image_features)
         # print(f"weighted image features shape: {weighted_image_features.shape}") # [batch_size, 512]
         # print(f"question state shape: {question_state.shape}") # [batch_size, 512]
-        # joint multimodal embedding of the question and the image
-        # should be done using an element-wise product, which means 
-        # each element in the context vector is multiplied by the corresponding element in the question vector
+        # joint multimodal embedding of the question and the image should be done using an element-wise product
         combined = weighted_image_features * question_state
         # print(f"combined shape {combined.shape}") # [batch_size, 512]
 
@@ -102,6 +99,7 @@ class VQADataset(Dataset):
         self.answer_to_idx = answer_to_idx
         self.transform = transform
         self.max_question_length = self.get_max_question_len()
+        self.image_dir = image_dir
 
     def __len__(self):
         return len(self.data)
@@ -127,7 +125,7 @@ class VQADataset(Dataset):
         question = entry['question']
         answer = entry['answer']
 
-        image_path = os.path.join(image_dir, image_file)
+        image_path = os.path.join(self.image_dir, image_file)
         image = Image.open(image_path).convert('RGB')
         if self.transform:
             image = self.transform(image)
@@ -154,148 +152,20 @@ print(f"total of {len(annotations_data['annotations'])} annotations")
 
 
 image_dir = 'train2014'
-image_files = os.listdir(image_dir)
+num_most_common_answers = 90
+desired_answer_counts = 224
 
-
-data = collections.defaultdict(lambda: {'image_file': None, 'questions': [], 'answers': []})
-
-def get_image_id(filename):
-    prefix = "COCO_train2014_"
-    suffix = ".jpg"
-    image_id_str = filename[len(prefix):-len(suffix)]
-    if image_id_str == '':
-        return None
-    image_id = int(image_id_str)
-    return image_id
-
-# Populate the data structure with image file names
-for filename in image_files:
-    image_id = get_image_id(filename)
-    if image_id == None:
-        continue
-    data[image_id]['image_file'] = filename
-
-# Populate the data structure with questions
-for question in questions_data['questions']:
-    image_id = question['image_id']
-    if image_id in data:
-        data[image_id]['questions'].append(question)
-
-# Populate the data structure with answers
-for annotation in annotations_data['annotations']:
-    image_id = annotation['image_id']
-    if image_id in data:
-        data[image_id]['answers'].append(annotation['multiple_choice_answer'])
-
-answer_counts = collections.Counter()
-for entry in data.values():
-    for answer in entry['answers']:
-        answer_counts[answer] += 1
-
-print(f"Original answer distribution: {answer_counts}")
-
-common_answers = [item[0] for item in answer_counts.most_common(90)]
-
-common_answers.append('UNK')
-
-print(f"{len(common_answers)} common answers")
-
-data_list = [value for key, value in data.items() if value['image_file'] is not None]
-
-
-print("filtering questions/answers")
-
-filtered_data_list = []
-for datum in data_list:
-    indices_to_remove = []
-    for i, answer in enumerate(datum['answers']):
-        if answer not in common_answers:
-            indices_to_remove.append(i)
-
-    for index in sorted(indices_to_remove, reverse=True):
-        datum['questions'].pop(index)
-        datum['answers'].pop(index)
-    
-    if datum['questions'] and datum['answers']:
-        filtered_data_list.append(datum)
-
-print(f"{len(filtered_data_list)} filtered data")
-
-
-flattened_data = []
-for entry in filtered_data_list:
-    image_file = entry['image_file']
-    for question, answer in zip(entry['questions'], entry['answers']):
-        flattened_data.append({
-            'image_file': image_file,
-            'question': question['question'],
-            'answer': answer
-        })
-print(f"{len(flattened_data)} flattened data")
-
-answer_counts = collections.Counter([entry['answer'].lower() for entry in flattened_data])
-
-print("Filtered answer distribution:")
-print(answer_counts)
-
-max_count = max(answer_counts.values())
-
-# Separate data by class
-data_by_class = {answer: [] for answer in answer_counts.keys()}
-for entry in flattened_data:
-    data_by_class[entry['answer'].lower()].append(entry)
-
-# Resample data to match the count of the most frequent class
-resampled_data = []
-for answer, data in data_by_class.items():
-    if len(data) < max_count:
-        resampled_data.extend(resample(data, replace=True, n_samples=max_count, random_state=42))
-    else:
-        resampled_data.extend(data)
-
-print(f"{len(resampled_data)} resampled data")
-
-# Check the new distribution
-new_answer_counts = collections.Counter([entry['answer'].lower() for entry in resampled_data])
-print("Resampled answer distribution:")
-print(new_answer_counts)
-
-desired_count = 224
-downsampled_data = []
-data_by_class_resampled = collections.defaultdict(list)
-
-for entry in resampled_data:
-    data_by_class_resampled[entry['answer'].lower()].append(entry)
-
-for answer, data in data_by_class_resampled.items():
-    if len(data) > desired_count:
-        downsampled_data.extend(resample(data, replace=False, n_samples=desired_count, random_state=42))
-    else:
-        downsampled_data.extend(data)
-
-# Check the new distribution
-final_answer_counts = collections.Counter([entry['answer'].lower() for entry in downsampled_data])
-print("Final downsampled answer distribution:")
-print(final_answer_counts)
-
-# print("downsampled data:")
-# print(downsampled_data)
-
-final_dataset = downsampled_data
+final_dataset, common_answers = helpers.extract_dataset_from_img_dir(image_dir, questions_data, annotations_data, num_most_common_answers, desired_answer_counts)
 
 print(f"length of final dataset: {len(final_dataset)}")
 
 vocab = helpers.create_vocab_list(final_dataset)
-word_to_idx = {word: idx for idx, word in enumerate(vocab)}
-# print(f"vocab: {vocab}")
 print(f"length of vocab: {len(vocab)}")
 
+word_to_idx = {word: idx for idx, word in enumerate(vocab)}
 answer_to_idx = {answer: idx for idx, answer in enumerate(common_answers)}
 
-# Each word is turned into a vector representation with
-# a look-up table, whose entries are 300-dimensional vectors
-# learned along other parameters during training.
-# Those vectors are initialized with pretrained GloVe word embeddings
+
 embedding_matrix = helpers.create_embedding_matrix(vocab, glove_embeddings, embedding_dimension=50)
 print(f"embedding_matrix shape: {embedding_matrix.shape}")
 
@@ -372,46 +242,63 @@ for epoch in range(num_epochs):
 
 
 # torch.save(vqamodel.state_dict(), 'vqamodel.pth')
-
 # vqamodel.load_state_dict(torch.load('vqamodel.pth', map_location=torch.device('cpu')))
+
 print("done training, starting eval")
 vqamodel.eval()
 
 max_q_len = dataset.get_max_question_len()
 print(f"testing time, max q len: {max_q_len}")
 
+test_dir = 'test-set'
+num_most_common_answers = 90
+desired_answer_counts = 224
 
-# batch_size = 4
-# test_dataset = VQADataset(final_dataset, word_to_idx, answer_to_idx, image_dir, transform=transform)
-# test_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+test_dataset, _ = helpers.extract_dataset_from_img_dir(test_dir, questions_data, annotations_data, num_most_common_answers, desired_answer_counts)
+print(f"test_dataset: {len(test_dataset)}")
+# if any answers don't appear in the training answer set, remove them
+test_dataset = [x for x in test_dataset if x['answer'] in common_answers]
+print(f"filtered test_dataset: {len(test_dataset)}")
 
-# total_loss = 0.0
-# correct = 0
-# total = 0
+batch_size = 1
 
-# with torch.no_grad():
-#     for questions, answers, images in test_loader:
-#         images = images.to(device)
-#         questions = questions.to(device)
-#         answers = answers.to(device)
+# test_vocab = helpers.create_vocab_list(test_dataset)
+word_to_idx = {word: idx for idx, word in enumerate(vocab)}
 
-#         # this is the bottom-up process that extracts the image features (bounding boxes) from raw images
-#         image_features = helpers.get_features_from_images(images, batch_size, bottom_up_model, threshold).to(device)
+test_dataset = VQADataset(test_dataset, word_to_idx, answer_to_idx, test_dir, transform=transform)
+test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
 
-#         output, _ = vqamodel(image_features, questions)
+total_loss = 0.0
+correct = 0
+total = 0
 
-#         predicted_answer_idx = torch.argmax(output, dim=1)
-#         predicted_answer_texts = [common_answers[idx.item()] for idx in predicted_answer_idx]
-#         print(f"Predicted answers: {predicted_answer_texts}")
-#         print(f"Actual answers: {[common_answers[answer] for answer in answers]}")
+with torch.no_grad():
+    for questions, answers, images in test_loader:
+        images = images.to(device)
+        questions = questions.to(device)
+        answers = answers.to(device)
 
-#         loss = criterion(output, answers)
-#         total_loss += loss.item()
-#         total += answers.size(0)
-#         correct += (predicted_answer_idx == answers).sum().item()
-    
-# average_loss = total_loss / len(test_loader)
-# accuracy = correct / total
+        # this is the bottom-up process that extracts the image features (bounding boxes) from raw images
+        image_features = helpers.get_features_from_images(images, batch_size, bottom_up_model, threshold).to(device)
+
+        output, _ = vqamodel(image_features, questions)
+
+        predicted_answer_idx = torch.argmax(output, dim=1)
+        predicted_answer_texts = [common_answers[idx.item()] for idx in predicted_answer_idx]
+        print(f"Predicted answers: {predicted_answer_texts}")
+        print(f"Actual answers: {[common_answers[answer] for answer in answers]}")
+
+        loss = criterion(output, answers)
+        total_loss += loss.item()
+        total += answers.size(0)
+        correct += (predicted_answer_idx == answers).sum().item()
+
+average_loss = total_loss / len(test_loader)
+accuracy = correct / total
+
+print(f"average loss: {average_loss}")
+print(f"accuracy: {accuracy}")
+
 
 # while True:
 #     img_file = input("Enter an image filename, or 'quit' to end: ")
