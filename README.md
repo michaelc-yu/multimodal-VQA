@@ -22,7 +22,7 @@ The model uses a combined bottom-up and top-down network approach inspired by th
 * torchvision
 * scikit-learn
 
-Install using pip install -r requirements.txt
+Install using: ```pip install -r requirements.txt
 
 
 ## Usage
