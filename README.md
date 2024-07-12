@@ -16,11 +16,11 @@ The model uses a combined bottom-up and top-down network approach inspired by th
 
 
 ## Requirements
-numpy
-torch
-Pillow
-torchvision
-scikit-learn
+* numpy
+* torch
+* Pillow
+* torchvision
+* scikit-learn
 
 
 ## Usage
