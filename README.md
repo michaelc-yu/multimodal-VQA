@@ -30,5 +30,5 @@ The model uses a combined bottom-up and top-down network approach inspired by th
 
 
 ## References
-
+Peter Anderson, Xiaodong He, Chris Buehler, Damien Teney, Mark Johnson, Stephen Gould, Lei Zhang. [Bottom-Up and Top-Down Attention for Image Captioning and Visual Question Answering](https://arxiv.org/pdf/1707.07998)
 
