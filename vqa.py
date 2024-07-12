@@ -199,7 +199,7 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(vqamodel.parameters(), lr=0.001)
 threshold = 0.7
 
-num_epochs = 5
+num_epochs = 10
 for epoch in range(num_epochs):
     loss_accum = 0
     for questions, answers, images in train_loader:
@@ -300,45 +300,45 @@ print(f"average loss: {average_loss}")
 print(f"accuracy: {accuracy}")
 
 
-# while True:
-#     img_file = input("Enter an image filename, or 'quit' to end: ")
-#     if img_file == "quit":
-#         break
+while True:
+    img_file = input("Enter an image filename, or 'quit' to end: ")
+    if img_file == "quit":
+        break
 
-#     test_img = f"test-images/{img_file}"
-#     test_img = Image.open(test_img).convert('RGB')
-#     test_img = transform(test_img)
-#     test_img = test_img.unsqueeze(0).to(device)
-#     output = bottom_up_model(test_img)
-#     boxes = output[0]['boxes']
-#     labels = output[0]['labels']
-#     scores = output[0]['scores']
+    test_img = f"test-images/{img_file}"
+    test_img = Image.open(test_img).convert('RGB')
+    test_img = transform(test_img)
+    test_img = test_img.unsqueeze(0).to(device)
+    output = bottom_up_model(test_img)
+    boxes = output[0]['boxes']
+    labels = output[0]['labels']
+    scores = output[0]['scores']
 
-#     filtered_boxes = [boxes[i].tolist() for i in range(len(labels)) if scores[i].item() > threshold]
+    filtered_boxes = [boxes[i].tolist() for i in range(len(labels)) if scores[i].item() > threshold]
 
-#     img_features = torch.tensor(filtered_boxes, dtype=torch.float32).unsqueeze(0).to(device)
-#     print("")
+    img_features = torch.tensor(filtered_boxes, dtype=torch.float32).unsqueeze(0).to(device)
+    print("")
 
-#     while True:
-#         user_question = input("Enter a question, or 'quit' to end: ")
-#         if user_question == "quit":
-#             break
-#         print(user_question)
+    while True:
+        user_question = input("Enter a question, or 'quit' to end: ")
+        if user_question == "quit":
+            break
+        print(user_question)
 
-#         q_tokens = user_question.lower().strip().split()
-#         q_indices = [word_to_idx.get(token, word_to_idx["<UNK>"]) for token in q_tokens]
-#         if len(q_indices) < max_q_len:
-#             q_indices += [word_to_idx["<PAD>"]] * (max_q_len - len(q_indices))
+        q_tokens = user_question.lower().strip().split()
+        q_indices = [word_to_idx.get(token, word_to_idx["<UNK>"]) for token in q_tokens]
+        if len(q_indices) < max_q_len:
+            q_indices += [word_to_idx["<PAD>"]] * (max_q_len - len(q_indices))
 
-#         print(f"len of q indices: {len(q_indices)}")
+        # print(f"len of q indices: {len(q_indices)}")
 
-#         q_tensor = torch.tensor(q_indices, dtype=torch.long).unsqueeze(0).to(device)
+        q_tensor = torch.tensor(q_indices, dtype=torch.long).unsqueeze(0).to(device)
 
-#         print(f"q tensor shape: {q_tensor.shape}") # [1, 18] -> [batch_size, max q len]
+        # print(f"q tensor shape: {q_tensor.shape}") # [1, 18] -> [batch_size, max q len]
 
-#         with torch.no_grad():
-#             output, _ = vqamodel(img_features, q_tensor)
-#             ans_idx = torch.argmax(output, dim=1)
-#             ans = common_answers[ans_idx]
-#             print(f"answer: {ans}")
-
+        with torch.no_grad():
+            output, _ = vqamodel(img_features, q_tensor)
+            ans_idx = torch.argmax(output, dim=1)
+            ans = common_answers[ans_idx]
+            print(f"answer: {ans}")
+    print("")
