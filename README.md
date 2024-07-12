@@ -27,6 +27,7 @@ Install using: ```pip install -r requirements.txt```
 
 ## Usage
 
+```python vqa.py```
 
 ## Results
 
