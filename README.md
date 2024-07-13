@@ -13,6 +13,7 @@ The model uses a combined bottom-up and top-down network approach inspired by th
 
 
 ## Performance
+The model has been trained for 10 epochs on 1800 training images. It achieves a VQA accuracy score of ~0.45 with ~500 testing samples.
 
 
 ## Requirements
