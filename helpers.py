@@ -4,7 +4,7 @@ import torch
 import collections
 import os
 from sklearn.utils import resample
-
+import re
 
 
 def load_glove_embeddings(glove_file_path):
@@ -27,13 +27,19 @@ def create_embedding_matrix(vocab, glove_embeddings, embedding_dimension):
             embedding_matrix[i] = np.zeros((embedding_dimension,))
     return torch.tensor(embedding_matrix, dtype=torch.float)
 
+def tokenize(text):
+    tokens = re.findall(r"\b\w+(?:'\w+)?\b|[^\w\s]", text.lower())
+    return tokens
+
 def create_vocab_list(all_data):
     # <UNK> for unseen words
     # <PAD> for padding questions to same length
     vocab = ["<UNK>", "<PAD>"]
     for item in all_data:
         question_txt = item['question']
-        words = question_txt.split()
+        # words = question_txt.split()
+        words = tokenize(question_txt)
+        # print(f"in create_vocab_list, words: {words}")
         for word in words:
             word = word.lower()
             if word not in vocab:
@@ -138,7 +144,7 @@ def extract_dataset_from_img_dir(image_dir, questions_data, annotations_data, nu
         for answer in entry['answers']:
             answer_counts[answer] += 1
 
-    print(f"Original answer distribution: {answer_counts}")
+    # print(f"Original answer distribution: {answer_counts}")
 
     common_answers = [item[0] for item in answer_counts.most_common(num_most_common_answers)]
 
@@ -148,7 +154,7 @@ def extract_dataset_from_img_dir(image_dir, questions_data, annotations_data, nu
 
     data_list = [value for key, value in data.items() if value['image_file'] is not None]
 
-    print("filtering questions/answers")
+    # print("filtering questions/answers")
     filtered_data_list = []
     for datum in data_list:
         indices_to_remove = []
@@ -174,11 +180,11 @@ def extract_dataset_from_img_dir(image_dir, questions_data, annotations_data, nu
                 'question': question['question'],
                 'answer': answer
             })
-    print(f"{len(flattened_data)} flattened data")
+    # print(f"{len(flattened_data)} flattened data")
 
     answer_counts = collections.Counter([entry['answer'].lower() for entry in flattened_data])
 
-    print("Filtered answer distribution:")
+    # print("Filtered answer distribution:")
     print(answer_counts)
 
     max_count = max(answer_counts.values())
@@ -196,12 +202,12 @@ def extract_dataset_from_img_dir(image_dir, questions_data, annotations_data, nu
         else:
             resampled_data.extend(data)
 
-    print(f"{len(resampled_data)} resampled data")
+    # print(f"{len(resampled_data)} resampled data")
 
     # Check the new distribution
     new_answer_counts = collections.Counter([entry['answer'].lower() for entry in resampled_data])
-    print("Resampled answer distribution:")
-    print(new_answer_counts)
+    # print("Resampled answer distribution:")
+    # print(new_answer_counts)
 
     downsampled_data = []
     data_by_class_resampled = collections.defaultdict(list)

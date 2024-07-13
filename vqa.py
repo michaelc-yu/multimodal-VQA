@@ -15,6 +15,7 @@ from torchvision import transforms
 import torchvision.models as models
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
 from sklearn.utils import resample
+import re
 
 import attention
 import helpers
@@ -112,8 +113,14 @@ class VQADataset(Dataset):
             max_length = max(max_length, len(tokens))
         return max_length
 
+    def tokenize(self, text):
+        tokens = re.findall(r"\b\w+(?:'\w+)?\b|\?", text.lower())
+        return tokens
+
     def preprocess_question(self, question):
-        tokens = question.lower().strip().split()
+        # print(f"in preprocess question, question: {question}")
+        tokens = self.tokenize(question)
+        # print(f"in preprocess question, tokens: {tokens}")
         indices = [self.word_to_idx.get(token, self.word_to_idx["<UNK>"]) for token in tokens]
         if len(indices) < self.max_question_length:
             indices += [self.word_to_idx["<PAD>"]] * (self.max_question_length - len(indices))
@@ -166,6 +173,9 @@ print(f"length of vocab: {len(vocab)}")
 word_to_idx = {word: idx for idx, word in enumerate(vocab)}
 idx_to_word = {idx: word for idx, word in enumerate(vocab)}
 answer_to_idx = {answer: idx for idx, answer in enumerate(common_answers)}
+
+# print(f"word to idx: {word_to_idx}")
+# print(f"idx to word: {idx_to_word}")
 
 
 embedding_matrix = helpers.create_embedding_matrix(vocab, glove_embeddings, embedding_dimension=50)
@@ -266,7 +276,7 @@ test_dataset, _ = helpers.extract_dataset_from_img_dir(test_dir, questions_data,
 # if any words in the question don't appear in the vocab, remove them
 filtered_test_dataset = []
 for x in test_dataset:
-    question_words = x['question'].split()
+    question_words = helpers.tokenize(x['question'])
     print(f"question words: {question_words}")
     if all(word.lower() in vocab for word in question_words):
         filtered_test_dataset.append(x)
@@ -277,7 +287,7 @@ print(f"final test_dataset: {test_dataset}")
 print(f"length final test_dataset: {len(test_dataset)}")
 
 for x in test_dataset:
-    question_words = x['question'].split()
+    question_words = helpers.tokenize(x['question'])
     for word in question_words:
         if word.lower() not in vocab:
             raise ValueError("word in question not in test dataset")
