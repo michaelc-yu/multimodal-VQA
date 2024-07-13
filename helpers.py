@@ -35,6 +35,7 @@ def create_vocab_list(all_data):
         question_txt = item['question']
         words = question_txt.split()
         for word in words:
+            word = word.lower()
             if word not in vocab:
                 vocab.append(word)
     return vocab

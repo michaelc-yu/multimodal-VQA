@@ -161,8 +161,10 @@ print(f"length of final dataset: {len(final_dataset)}")
 
 vocab = helpers.create_vocab_list(final_dataset)
 print(f"length of vocab: {len(vocab)}")
+# print(f"vocab: {vocab}")
 
 word_to_idx = {word: idx for idx, word in enumerate(vocab)}
+idx_to_word = {idx: word for idx, word in enumerate(vocab)}
 answer_to_idx = {answer: idx for idx, answer in enumerate(common_answers)}
 
 
@@ -205,6 +207,11 @@ for epoch in range(num_epochs):
     for questions, answers, images in train_loader:
         # print(f"questions: {questions}")
         # print(f"answers: {answers}")
+        # questions_list = questions.tolist()
+        # print(f"questions list: {questions_list}")
+        # questions_text = [idx_to_word[idx] for idx in questions_list[0]]
+        # print(f"questions: {questions_text}")
+
         optimizer.zero_grad()
 
         images = images.to(device)
@@ -255,10 +262,28 @@ num_most_common_answers = 90
 desired_answer_counts = 224
 
 test_dataset, _ = helpers.extract_dataset_from_img_dir(test_dir, questions_data, annotations_data, num_most_common_answers, desired_answer_counts)
-print(f"test_dataset: {len(test_dataset)}")
+
+# if any words in the question don't appear in the vocab, remove them
+filtered_test_dataset = []
+for x in test_dataset:
+    question_words = x['question'].split()
+    print(f"question words: {question_words}")
+    if all(word.lower() in vocab for word in question_words):
+        filtered_test_dataset.append(x)
+
 # if any answers don't appear in the training answer set, remove them
-test_dataset = [x for x in test_dataset if x['answer'] in common_answers]
-print(f"filtered test_dataset: {len(test_dataset)}")
+test_dataset = [x for x in filtered_test_dataset if x['answer'] in common_answers]
+print(f"final test_dataset: {test_dataset}")
+print(f"length final test_dataset: {len(test_dataset)}")
+
+for x in test_dataset:
+    question_words = x['question'].split()
+    for word in question_words:
+        if word.lower() not in vocab:
+            raise ValueError("word in question not in test dataset")
+    answer = x['answer']
+    if answer.lower() not in common_answers:
+        raise ValueError("answer not in answer list")
 
 batch_size = 1
 
@@ -277,6 +302,11 @@ with torch.no_grad():
         images = images.to(device)
         questions = questions.to(device)
         answers = answers.to(device)
+
+        # questions_list = questions.tolist()
+        # print(f"questions list: {questions_list}")
+        # questions_text = [idx_to_word[idx] for idx in questions_list[0]]
+        # print(f"questions: {questions_text}")
 
         # this is the bottom-up process that extracts the image features (bounding boxes) from raw images
         image_features = helpers.get_features_from_images(images, batch_size, bottom_up_model, threshold).to(device)
