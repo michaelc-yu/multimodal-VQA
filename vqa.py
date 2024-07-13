@@ -158,7 +158,7 @@ print(f"total of {len(annotations_data['annotations'])} annotations")
 
 
 
-image_dir = 'train2014'
+image_dir = 'train-set'
 num_most_common_answers = 90
 desired_answer_counts = 224
 
