@@ -31,8 +31,15 @@ Install using: ```pip install -r requirements.txt```
 ```python vqa.py```
 
 ## Results
+| Image          | Question |   Answer   |
+|----------------|----------|------------|
+| Image A        |          |            |
+| Image B        |          |            |
+| Image C        |          |            |
 
 
 ## References
 Peter Anderson, Xiaodong He, Chris Buehler, Damien Teney, Mark Johnson, Stephen Gould, Lei Zhang. [Bottom-Up and Top-Down Attention for Image Captioning and Visual Question Answering](https://arxiv.org/pdf/1707.07998)
+
+Tips and Tricks for Visual Question Answering: Learnings from the 2017 Challenge
 
