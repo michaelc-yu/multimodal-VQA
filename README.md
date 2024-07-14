@@ -41,5 +41,5 @@ Install using: ```pip install -r requirements.txt```
 ## References
 Peter Anderson, Xiaodong He, Chris Buehler, Damien Teney, Mark Johnson, Stephen Gould, Lei Zhang. [Bottom-Up and Top-Down Attention for Image Captioning and Visual Question Answering](https://arxiv.org/pdf/1707.07998)
 
-Tips and Tricks for Visual Question Answering: Learnings from the 2017 Challenge
+Damien Teney, Peter Anderson, Xiaodong He, Anton van den Hengel. [Tips and Tricks for Visual Question Answering: Learnings from the 2017 Challenge](https://arxiv.org/pdf/1708.02711)
 
