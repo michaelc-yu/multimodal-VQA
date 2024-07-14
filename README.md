@@ -33,11 +33,10 @@ Install using: ```pip install -r requirements.txt```
 ## Results
 | Image          | Question                             |   Answer   |
 |----------------|--------------------------------------|------------|
-| ![COCO_train2014_000000581153](https://github.com/user-attachments/assets/60f77ed9-35e4-4bcd-8fd2-32d8117d3973)
-      |  What is the cat doing?              |  eating    |
-| Image B        |  What color is the largest vehicle?  |  orange    |
-| Image C        |  How many kites are there?           |  many      |
-| Image D        |  What is in his right hand?          |  baseball  |
+| ![COCO_train2014_000000581153](https://github.com/user-attachments/assets/60f77ed9-35e4-4bcd-8fd2-32d8117d3973) |  What is the cat doing?              |  eating    |
+| ![COCO_train2014_000000580906](https://github.com/user-attachments/assets/c5870b7f-3c3d-4b80-9e37-03b67a9a163f) |  What color is the largest vehicle?  |  orange    |
+| ![COCO_train2014_000000581884](https://github.com/user-attachments/assets/51f331fd-da4e-447e-8ce4-2c05660ea289) |  How many kites are there?           |  many      |
+| ![COCO_train2014_000000580933](https://github.com/user-attachments/assets/7c500b5c-c8cb-45e2-9372-e011d53eeac8) |  What is in his right hand?          |  baseball  |
 
 ## References
 Peter Anderson, Xiaodong He, Chris Buehler, Damien Teney, Mark Johnson, Stephen Gould, Lei Zhang. [Bottom-Up and Top-Down Attention for Image Captioning and Visual Question Answering](https://arxiv.org/pdf/1707.07998)
