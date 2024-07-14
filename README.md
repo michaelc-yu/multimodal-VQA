@@ -31,12 +31,13 @@ Install using: ```pip install -r requirements.txt```
 ```python vqa.py```
 
 ## Results
-| Image          | Question |   Answer   |
-|----------------|----------|------------|
-| Image A        |          |            |
-| Image B        |          |            |
-| Image C        |          |            |
-
+| Image          | Question                             |   Answer   |
+|----------------|--------------------------------------|------------|
+| ![COCO_train2014_000000581153](https://github.com/user-attachments/assets/60f77ed9-35e4-4bcd-8fd2-32d8117d3973)
+      |  What is the cat doing?              |  eating    |
+| Image B        |  What color is the largest vehicle?  |  orange    |
+| Image C        |  How many kites are there?           |  many      |
+| Image D        |  What is in his right hand?          |  baseball  |
 
 ## References
 Peter Anderson, Xiaodong He, Chris Buehler, Damien Teney, Mark Johnson, Stephen Gould, Lei Zhang. [Bottom-Up and Top-Down Attention for Image Captioning and Visual Question Answering](https://arxiv.org/pdf/1707.07998)
